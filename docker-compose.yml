@@ -1,0 +1,15 @@
+# Local PostgreSQL with PostGIS (optional extension, enabled by the image).
+# Usage: docker compose up -d db
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: lastplate
+      POSTGRES_PASSWORD: lastplate
+      POSTGRES_DB: lastplate
+    ports:
+      - "5432:5432"
+    volumes:
+      - lastplate-pg:/var/lib/postgresql/data
+volumes:
+  lastplate-pg:
