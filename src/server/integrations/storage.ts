@@ -4,12 +4,12 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { env } from "@/lib/env";
 
-const root = path.resolve(process.cwd(), env.STORAGE_DIR);
+const root = path.resolve(/*turbopackIgnore: true*/ process.cwd(), env.STORAGE_DIR);
 const KEY_PATTERN = /^[A-Za-z0-9_-]{16,80}\.(jpg|png|webp)$/;
 
 function resolveKey(key: string): string {
   if (!KEY_PATTERN.test(key)) throw new Error("Invalid storage key");
-  return path.join(root, key);
+  return path.join(/*turbopackIgnore: true*/ root, key);
 }
 
 export const privateStorage = {

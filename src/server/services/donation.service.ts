@@ -228,3 +228,14 @@ export async function listOwnDonations(
   );
 }
 
+
+/** Status history for a donation the viewer is allowed to see. Actors are shown by role, not by name. */
+export async function donationHistory(user: AuthUser | null, id: string) {
+  await getDonationForViewer(user, id); // Enforces the same visibility rules as the detail view.
+  const events = await db.donationEvent.findMany({
+    where: { donationId: id },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, action: true, fromStatus: true, toStatus: true, actorRole: true, note: true, createdAt: true },
+  });
+  return events.map((e) => ({ ...e, createdAt: e.createdAt.toISOString() }));
+}

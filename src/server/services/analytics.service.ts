@@ -189,3 +189,14 @@ export async function insightMetrics() {
     flaggedDuplicates: overview.queues.flaggedDuplicates,
   };
 }
+
+/** Verified partner organizations for the public landing page. Names and cities only, never contacts. */
+export async function publicPartners(limit = 8) {
+  const rows = await db.organization.findMany({
+    where: { user: { verificationStatus: "VERIFIED", status: "ACTIVE" } },
+    select: { name: true, type: true, city: true, user: { select: { role: true, isDemo: true } } },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+  });
+  return rows.map((o) => ({ name: o.name, type: o.type, city: o.city, role: o.user.role, isDemo: o.user.isDemo }));
+}

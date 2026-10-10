@@ -4,6 +4,16 @@ import type { DonationStatus, Role, VerificationStatus } from "@/generated/prism
 import { decryptSecret } from "@/lib/crypto";
 import { approximateLocation } from "./geo";
 
+/** Fail closed: a code that cannot be decrypted (for example after an APP_SECRET change) is hidden, not fatal. */
+function readHandoverCode(cipher: string, donationId: string): string | null {
+  try {
+    return decryptSecret(cipher);
+  } catch {
+    console.error(JSON.stringify({ level: "error", message: "handover code could not be decrypted", donationId }));
+    return null;
+  }
+}
+
 export type Viewer = { id: string; role: Role; verificationStatus: VerificationStatus } | null;
 
 export interface DonationRecord {
@@ -253,7 +263,7 @@ export function toDonationView(d: DonationRecord, viewer: Viewer): DonationView 
           deliveredAt: iso(d.delivery.deliveredAt),
         }
       : null,
-    handoverCode: showHandoverCode ? decryptSecret(d.handoverCodeCipher!) : null,
+    handoverCode: showHandoverCode ? readHandoverCode(d.handoverCodeCipher!, d.id) : null,
     photos: full || access === "PARTICIPANT" ? d.photos.map((p) => ({ id: p.id, url: `/api/files/photos/${p.id}` })) : [],
   };
   return view;
