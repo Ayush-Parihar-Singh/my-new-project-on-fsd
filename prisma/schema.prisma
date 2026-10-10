@@ -1,0 +1,413 @@
+// LastPlate data model. Migrations live in prisma/migrations.
+// Private data (pickup addresses, phone numbers) is only exposed through the
+// visibility rules in src/server/domain/visibility.ts - never serialize models directly.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  DONOR
+  NGO
+  VOLUNTEER
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  NOT_SUBMITTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum VerificationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum OrgType {
+  RESTAURANT
+  CAFE
+  HOTEL
+  HOSTEL
+  EVENT_ORGANIZER
+  COLLEGE_CANTEEN
+  NGO
+  SHELTER
+  COMMUNITY_KITCHEN
+  OTHER
+}
+
+enum VehicleType {
+  ON_FOOT
+  BICYCLE
+  TWO_WHEELER
+  CAR
+  VAN
+}
+
+enum DonationStatus {
+  DRAFT
+  AVAILABLE
+  REQUESTED
+  CONFIRMED
+  PICKUP_IN_PROGRESS
+  COMPLETED
+  REJECTED
+  CANCELLED
+  EXPIRED
+  FAILED_HANDOVER
+}
+
+enum FoodCategory {
+  COOKED_MEALS
+  BAKERY
+  FRESH_PRODUCE
+  DAIRY
+  BEVERAGES
+  PACKAGED_GOODS
+  DESSERTS
+  OTHER
+}
+
+enum QuantityUnit {
+  KG
+  LITRES
+  PORTIONS
+  PACKS
+  PIECES
+}
+
+enum DeliveryStatus {
+  OPEN
+  ASSIGNED
+  PICKED_UP
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum NotificationType {
+  CLAIM_RECEIVED
+  CLAIM_WITHDRAWN
+  CLAIM_CONFIRMED
+  CLAIM_DECLINED
+  DELIVERY_AVAILABLE
+  ASSIGNMENT_ACCEPTED
+  ASSIGNMENT_RELEASED
+  PICKUP_STARTED
+  DEADLINE_REMINDER
+  DONATION_CANCELLED
+  DONATION_EXPIRED
+  HANDOVER_COMPLETED
+  HANDOVER_FAILED
+  VERIFICATION_UPDATE
+  LISTING_MODERATED
+  ACCOUNT_UPDATE
+  GENERAL
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum EmailStatus {
+  SENT
+  LOGGED
+  FAILED
+}
+
+model User {
+  id                 String             @id @default(cuid())
+  email              String             @unique
+  passwordHash       String
+  fullName           String
+  role               Role
+  status             AccountStatus      @default(ACTIVE)
+  verificationStatus VerificationStatus @default(NOT_SUBMITTED)
+  phone              String?
+  onboardedAt        DateTime?
+  isDemo             Boolean            @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization         Organization?
+  volunteerProfile     VolunteerProfile?
+  sessions             Session[]
+  passwordResets       PasswordResetToken[]
+  notifications        Notification[]
+  verificationRequests VerificationRequest[]
+  donations            Donation[]            @relation("donor")
+  claimedDonations     Donation[]            @relation("claimant")
+  deliveries           Delivery[]            @relation("volunteer")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Organization {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  type               OrgType
+  registrationNumber String?
+  addressLine        String
+  city               String
+  latitude           Float
+  longitude          Float
+  phone              String
+  description        String?
+  operatingHours     String?
+  receivingStartHour Int?
+  receivingEndHour   Int?
+  serviceRadiusKm    Int      @default(15)
+  dailyBeneficiaries Int?
+  maxPickupQuantity  Float?
+  dietaryNeeds       String[] @default([])
+  avoidAllergens     String[] @default([])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([latitude, longitude])
+}
+
+model VolunteerProfile {
+  id              String      @id @default(cuid())
+  userId          String      @unique
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city            String
+  latitude        Float
+  longitude       Float
+  vehicleType     VehicleType
+  availability    String
+  isAvailable     Boolean     @default(true)
+  serviceRadiusKm Int         @default(8)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([latitude, longitude])
+}
+
+model VerificationRequest {
+  id            String                    @id @default(cuid())
+  userId        String
+  user          User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        VerificationRequestStatus @default(PENDING)
+  applicantNote String?
+  reviewNote    String?
+  reviewerId    String?
+  submittedAt   DateTime                  @default(now())
+  reviewedAt    DateTime?
+
+  @@index([status, submittedAt])
+  @@index([userId])
+}
+
+model Donation {
+  id                     String         @id @default(cuid())
+  donorId                String
+  donor                  User           @relation("donor", fields: [donorId], references: [id])
+  status                 DonationStatus @default(DRAFT)
+  title                  String         @default("")
+  description            String         @default("")
+  category               FoodCategory?
+  quantity               Float?
+  unit                   QuantityUnit?
+  preparedAt             DateTime?
+  dietaryTags            String[]       @default([])
+  allergens              String[]       @default([])
+  allergenNotes          String?
+  pickupAddressLine      String         @default("")
+  pickupCity             String         @default("")
+  pickupLatitude         Float?
+  pickupLongitude        Float?
+  pickupAreaLabel        String         @default("")
+  availableFrom          DateTime?
+  availableUntil         DateTime?
+  pickupDeadline         DateTime?
+  storageInstructions    String?
+  handlingInstructions   String?
+  version                Int            @default(1)
+  isDemo                 Boolean        @default(false)
+  claimedById            String?
+  claimant               User?          @relation("claimant", fields: [claimedById], references: [id])
+  claimedAt              DateTime?
+  confirmedAt            DateTime?
+  handoverCodeHash       String?
+  handoverCodeCipher     String?
+  pickupStartedAt        DateTime?
+  completedAt            DateTime?
+  cancelledAt            DateTime?
+  cancellationReason     String?
+  expiredAt              DateTime?
+  failedAt               DateTime?
+  failureReason          String?
+  rejectedAt             DateTime?
+  rejectionReason        String?
+  publishedAt            DateTime?
+  deadlineReminderSentAt DateTime?
+  duplicateOfId          String?
+  duplicateScore         Float?
+  duplicateFlagged       Boolean        @default(false)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  photos   DonationPhoto[]
+  events   DonationEvent[]
+  delivery Delivery?
+  reports  Report[]
+
+  @@index([status, pickupDeadline])
+  @@index([donorId, status])
+  @@index([claimedById, status])
+  @@index([pickupLatitude, pickupLongitude])
+  @@index([duplicateFlagged])
+  @@index([publishedAt])
+}
+
+model DonationPhoto {
+  id           String   @id @default(cuid())
+  donationId   String
+  donation     Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  storageKey   String   @unique
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  @@index([donationId])
+}
+
+model DonationEvent {
+  id         String          @id @default(cuid())
+  donationId String
+  donation   Donation        @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  action     String
+  fromStatus DonationStatus?
+  toStatus   DonationStatus?
+  actorId    String?
+  actorRole  Role?
+  note       String?
+  createdAt  DateTime        @default(now())
+
+  @@index([donationId, createdAt])
+  @@index([createdAt])
+}
+
+model Delivery {
+  id            String         @id @default(cuid())
+  donationId    String         @unique
+  donation      Donation       @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  status        DeliveryStatus @default(OPEN)
+  volunteerId   String?
+  volunteer     User?          @relation("volunteer", fields: [volunteerId], references: [id])
+  assignedAt    DateTime?
+  pickedUpAt    DateTime?
+  deliveredAt   DateTime?
+  failedAt      DateTime?
+  failureReason String?
+  version       Int            @default(1)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([status])
+  @@index([volunteerId, status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  donationId     String
+  donation       Donation     @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  reporterId     String
+  reason         String
+  status         ReportStatus @default(OPEN)
+  resolutionNote String?
+  resolvedById   String?
+  createdAt      DateTime     @default(now())
+  resolvedAt     DateTime?
+
+  @@index([status, createdAt])
+  @@index([donationId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([action])
+}
+
+model OutboundEmail {
+  id        String      @id @default(cuid())
+  toEmail   String
+  subject   String
+  body      String
+  status    EmailStatus
+  error     String?
+  createdAt DateTime    @default(now())
+  sentAt    DateTime?
+
+  @@index([createdAt])
+}

@@ -1,0 +1,25 @@
+# dependencies & build output
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# generated Prisma client (regenerate with `npm run db:generate`)
+src/generated/
+
+# environment & secrets
+.env
+.env.*
+!.env.example
+
+# private uploaded files (never commit user content)
+storage/
+storage-test/
+
+# logs & OS files
+*.log
+.DS_Store
